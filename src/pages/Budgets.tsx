@@ -4,10 +4,11 @@ import { Budget, BudgetStatus, BudgetVehicle, Customer } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Filter, Plus, Search } from "lucide-react";
 import { BudgetTable } from "@/components/budgets/BudgetTable";
-import { mockVehicles } from "@/mocks/vehicles";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useServices } from "@/contexts/ServicesContext";
 import { useBudgets } from "@/contexts/BudgetsContext";
+import { useCustomers } from "@/contexts/CustomersContext";
+import { useVehicles } from "@/contexts/VehiclesContext"; // Importando o contexto de veículos
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -43,253 +44,198 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { BudgetFormModal } from "@/components/budgets/BudgetFormModal";
+
+interface Filters {
+  search: string;
+  status: BudgetStatus | "all";
+  dateRange: "all" | "today" | "week" | "month";
+  valueRange: "all" | "low" | "medium" | "high";
+}
 
 export default function Budgets() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { budgets, addBudget, updateBudget, deleteBudget } = useBudgets();
+  const { budgets, addBudget, updateBudget, updateBudgetStatus, deleteBudget } = useBudgets();
   const { convertBudgetToService } = useServices();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { customers } = useCustomers();
+  const { vehicles } = useVehicles(); // Usando o contexto de veículos
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
-  const [currentVehicles, setCurrentVehicles] = useState<BudgetVehicle[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<BudgetStatus | "all">("all");
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "all">("all");
-
-  const { data: customers = mockCustomers, isLoading: isLoadingCustomers } = useQuery({
-    queryKey: ["customers"],
-    queryFn: async () => mockCustomers,
+  const [budgetToEdit, setBudgetToEdit] = useState<Budget | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [filters, setFilters] = useState<Filters>({
+    search: "",
+    status: "all",
+    dateRange: "all",
+    valueRange: "all",
   });
 
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const selectedCustomer = customers.find(c => c.id === "");
 
-  // Filtragem de orçamentos
-  const filteredBudgets = budgets.filter(budget => {
-    const matchesSearch = budget.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customers.find(c => c.id === budget.customerId)?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || budget.status === statusFilter;
-    
-    const budgetDate = new Date(budget.createdAt);
-    const today = new Date();
-    const isToday = budgetDate.toDateString() === today.toDateString();
-    const isThisWeek = budgetDate >= new Date(today.setDate(today.getDate() - 7));
-    const isThisMonth = budgetDate.getMonth() === today.getMonth() && budgetDate.getFullYear() === today.getFullYear();
-    
-    const matchesDate = dateFilter === "all" ||
-      (dateFilter === "today" && isToday) ||
-      (dateFilter === "week" && isThisWeek) ||
-      (dateFilter === "month" && isThisMonth);
-    
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+  // Memoizando os filtros
+  const filteredBudgets = useMemo(() => {
+    return budgets.filter(budget => {
+      const matchesSearch = budget.id.toLowerCase().includes(filters.search.toLowerCase()) ||
+        customers.find(c => c.id === budget.customerId)?.name.toLowerCase().includes(filters.search.toLowerCase());
+      
+      const matchesStatus = filters.status === "all" || budget.status === filters.status;
+      
+      let dateMatch = true;
+      if (filters.dateRange !== "all") {
+        const budgetDate = new Date(budget.createdAt);
+        const today = new Date();
+        const diffDays = Math.floor((today.getTime() - budgetDate.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Estatísticas
-  const stats = {
+        switch (filters.dateRange) {
+          case "today":
+            dateMatch = diffDays === 0;
+            break;
+          case "week":
+            dateMatch = diffDays <= 7;
+            break;
+          case "month":
+            dateMatch = diffDays <= 30;
+            break;
+        }
+      }
+
+      let valueMatch = true;
+      if (filters.valueRange !== "all") {
+        switch (filters.valueRange) {
+          case "low":
+            valueMatch = budget.totalAmount <= 1000;
+            break;
+          case "medium":
+            valueMatch = budget.totalAmount > 1000 && budget.totalAmount <= 5000;
+            break;
+          case "high":
+            valueMatch = budget.totalAmount > 5000;
+            break;
+        }
+      }
+
+      return matchesSearch && matchesStatus && dateMatch && valueMatch;
+    });
+  }, [budgets, filters, customers]);
+
+  // Memoizando as estatísticas
+  const stats = useMemo(() => ({
     total: filteredBudgets.length,
     approved: filteredBudgets.filter(b => b.status === "approved").length,
     pending: filteredBudgets.filter(b => b.status === "pending").length,
     rejected: filteredBudgets.filter(b => b.status === "rejected").length,
     totalValue: filteredBudgets.reduce((sum, b) => sum + b.totalAmount, 0),
+  }), [filteredBudgets]);
+
+  // Funções de manipulação memoizadas
+  const handleCreateBudget = async (data: any) => {
+    try {
+      const newBudget: Budget = {
+        id: generateId(),
+        customerId: data.customerId,
+        vehicles: [],
+        status: "pending",
+        totalAmount: 0,
+        overtimeRule: data.overtimeRule,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        history: [{
+          id: generateId(),
+          date: new Date().toISOString(),
+          action: 'created',
+          description: 'Orçamento criado',
+          userId: 'u1',
+        }],
+      };
+
+      // Processar cada veículo do orçamento
+      data.vehicles.forEach((entry: any) => {
+        const vehicleEntry: BudgetVehicle = {
+          id: generateId(),
+          vehicleId: entry.preRegisteredVehicleId || generateId(),
+          vehicleName: entry.mode === "pre-registered" 
+            ? vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.brand + " " + vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.model
+            : `${entry.manualVehicle.brand} ${entry.manualVehicle.model}`,
+          category: entry.mode === "pre-registered"
+            ? vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.category || "HATCH"
+            : "HATCH",
+          startDate: entry.startDate,
+          endDate: entry.endDate,
+          dailyRate: entry.value,
+          totalDays: entry.totalDays,
+          totalAmount: entry.totalAmount,
+          serviceType: entry.serviceType,
+        };
+
+        newBudget.vehicles.push(vehicleEntry);
+      });
+
+      // Calcular o valor total do orçamento
+      newBudget.totalAmount = newBudget.vehicles.reduce(
+        (total, vehicle) => total + (vehicle.totalAmount || 0),
+        0
+      );
+
+      addBudget(newBudget);
+      
+      toast({
+        title: "Orçamento criado com sucesso",
+        description: `Orçamento #${newBudget.id} criado com ${newBudget.vehicles.length} veículo(s)`,
+      });
+
+      setIsFormModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao criar orçamento:", error);
+      toast({
+        title: "Erro ao criar orçamento",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
   };
 
-  const getVehicleCategory = (vehicleId: string) => {
-    const vehicle = mockVehicles.find(v => v.id === vehicleId);
-    return vehicle?.category || "N/A";
-  };
-
-  const handleCreateBudget = () => {
-    setEditingBudget(null);
-    setCurrentVehicles([]);
-    setSelectedCustomerId("");
-    setIsDialogOpen(true);
-  };
-
-  const handleEditBudget = (budget: Budget) => {
-    setEditingBudget(budget);
-    setCurrentVehicles(budget.vehicles?.filter(v => v && v.id && v.vehicleName) || []);
-    setSelectedCustomerId(budget.customerId || "");
-    setIsDialogOpen(true);
-  };
-
-  const handleDeleteBudget = async (id: string) => {
+  const handleDeleteBudget = useCallback(async (id: string) => {
     try {
       const deletedBudget = budgets.find(b => b.id === id);
       if (!deletedBudget) return;
 
       deleteBudget(id);
-      setIsDeleteDialogOpen(false);
       
       toast({
-        title: "Orçamento excluído com sucesso",
+        title: "Orçamento removido",
         description: `Orçamento #${deletedBudget.id} foi removido`,
       });
     } catch (error) {
-      console.error('Erro ao excluir orçamento:', error);
       toast({
-        title: "Erro ao excluir orçamento",
-        description: "Tente novamente mais tarde",
+        title: "Erro ao remover orçamento",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     }
+  }, [budgets, deleteBudget, toast]);
+
+  const getVehicleCategory = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId); // Usando o contexto de veículos
+    return vehicle?.category || "N/A";
   };
 
-  const handleSubmitVehicle = async (data: BudgetVehicle) => {
+  const handleUpdateBudgetStatus = useCallback(async (budgetId: string, newStatus: BudgetStatus) => {
     try {
-      // Valida se o veículo é válido antes de adicionar
-      if (!data || !data.id || !data.vehicleName) {
-        throw new Error("Dados do veículo inválidos");
-      }
+      const budget = budgets.find(b => b.id === budgetId);
+      if (!budget) return;
 
-      const updatedVehicles = [...currentVehicles, data].filter(v => v && v.id && v.vehicleName);
-      setCurrentVehicles(updatedVehicles);
-
-      const totalAmount = updatedVehicles.reduce(
-        (sum, vehicle) => sum + vehicle.totalAmount,
-        0
-      );
-
-      const now = new Date().toISOString();
-      const updatedBudget: Budget = editingBudget
-        ? {
-            ...editingBudget,
-            vehicles: updatedVehicles,
-            totalAmount,
-            customerId: selectedCustomerId,
-            updatedAt: now,
-            history: [
-              ...editingBudget.history,
-              {
-                id: generateId(),
-                date: now,
-                action: "vehicle_added",
-                description: `Veículo ${getVehicleCategory(data.vehicleId)} adicionado ao orçamento`,
-                userId: "u1"
-              }
-            ]
-          }
-        : {
-            id: generateId(),
-            vehicles: updatedVehicles,
-            totalAmount,
-            customerId: selectedCustomerId,
-            status: "draft",
-            notes: "",
-            history: [
-              {
-                id: generateId(),
-                date: now,
-                action: "created",
-                description: "Orçamento criado",
-                userId: "u1"
-              }
-            ],
-            createdAt: now,
-            updatedAt: now,
-          };
-
-      if (editingBudget) {
-        updateBudget(updatedBudget);
-      } else {
-        addBudget(updatedBudget);
-      }
-
-      setEditingBudget(updatedBudget);
+      // Primeiro atualiza o status do orçamento
+      updateBudgetStatus(budgetId, newStatus);
       
-      toast({
-        title: "Veículo adicionado com sucesso",
-        description: `Veículo ${getVehicleCategory(data.vehicleId)} foi adicionado ao orçamento`,
-      });
-    } catch (error) {
-      console.error('Erro ao adicionar veículo:', error);
-      toast({
-        title: "Erro ao adicionar veículo",
-        description: "Tente novamente mais tarde",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRemoveVehicle = (index: number) => {
-    try {
-      if (index < 0 || index >= currentVehicles.length) return;
-
-      // Remove o veículo do array e filtra novamente para garantir
-      const updatedVehicles = currentVehicles.filter((_, i) => i !== index);
-      
-      const totalAmount = updatedVehicles.reduce(
-        (sum, vehicle) => sum + vehicle.totalAmount,
-        0
-      );
-
-      const now = new Date().toISOString();
-      const updatedBudget: Budget = editingBudget ? {
-        ...editingBudget,
-        vehicles: updatedVehicles,
-        totalAmount,
-        updatedAt: now,
-        history: [
-          ...editingBudget.history,
-          {
-            id: generateId(),
-            date: now,
-            action: "vehicle_removed",
-            description: "Veículo removido do orçamento",
-            userId: "u1"
-          }
-        ]
-      } : {
-        id: generateId(),
-        vehicles: updatedVehicles,
-        totalAmount,
-        status: "draft",
-        customerId: selectedCustomerId,
-        history: [{
-          id: generateId(),
-          date: now,
-          action: "vehicle_removed",
-          description: "Veículo removido do orçamento",
-          userId: "u1"
-        }],
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      if (editingBudget) {
-        updateBudget(updatedBudget);
-      }
-      
-      setCurrentVehicles(updatedVehicles);
-      setEditingBudget(updatedBudget);
-
-      toast({
-        title: "Veículo removido com sucesso",
-        description: "O veículo foi removido do orçamento",
-      });
-    } catch (error) {
-      console.error('Erro ao remover veículo:', error);
-      toast({
-        title: "Erro ao remover veículo",
-        description: "Tente novamente mais tarde",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUpdateBudgetStatus = async (budgetId: string, newStatus: BudgetStatus) => {
-    try {
-      // Se o orçamento foi aprovado, converte para serviço
+      // Se foi aprovado, então converte para serviço
       if (newStatus === 'approved') {
-        const budget = budgets.find(b => b.id === budgetId);
-        if (budget) {
-          convertBudgetToService(budget);
-        }
+        const updatedBudget = { ...budget, status: newStatus };
+        convertBudgetToService(updatedBudget);
       }
-      
-      updateBudget({ ...budgets.find(b => b.id === budgetId), status: newStatus });
       
       toast({
         title: "Status atualizado com sucesso",
@@ -305,27 +251,118 @@ export default function Budgets() {
       console.error('Error updating budget status:', error);
       toast({
         title: "Erro ao atualizar status",
-        description: "Ocorreu um erro ao atualizar o status do orçamento.",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao atualizar o status do orçamento.",
+        variant: "destructive",
+      });
+    }
+  }, [budgets, updateBudgetStatus, convertBudgetToService]);
+
+  const handleEditBudget = (budget: Budget) => {
+    setBudgetToEdit(budget);
+    setIsFormModalOpen(true);
+  };
+
+  const handleUpdateBudget = async (data: any) => {
+    try {
+      const updatedBudget: Budget = {
+        ...budgetToEdit!,
+        customerId: data.customerId,
+        vehicles: data.vehicles.map((entry: any) => ({
+          id: entry.id,
+          vehicleId: entry.preRegisteredVehicleId || entry.vehicleId,
+          vehicleName: entry.mode === "pre-registered" 
+            ? vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.brand + " " + vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.model
+            : `${entry.manualVehicle.brand} ${entry.manualVehicle.model}`,
+          category: entry.mode === "pre-registered"
+            ? vehicles.find(v => v.id === entry.preRegisteredVehicleId)?.category || "HATCH"
+            : "HATCH",
+          startDate: entry.startDate,
+          endDate: entry.endDate,
+          dailyRate: entry.value,
+          totalDays: entry.totalDays,
+          totalAmount: entry.totalAmount,
+          serviceType: entry.serviceType,
+        })),
+        totalAmount: data.vehicles.reduce((total: number, vehicle: any) => total + vehicle.totalAmount, 0),
+        updatedAt: new Date().toISOString(),
+        history: [
+          ...budgetToEdit!.history,
+          {
+            id: generateId(),
+            date: new Date().toISOString(),
+            action: 'updated',
+            description: 'Orçamento atualizado',
+            userId: 'u1',
+          }
+        ],
+      };
+
+      updateBudget(updatedBudget);
+      
+      toast({
+        title: "Orçamento atualizado com sucesso",
+        description: `Orçamento #${updatedBudget.id} foi atualizado`,
+      });
+
+      setBudgetToEdit(null);
+      setIsFormModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao atualizar orçamento:", error);
+      toast({
+        title: "Erro ao atualizar orçamento",
+        description: "Ocorreu um erro ao atualizar o orçamento. Tente novamente.",
         variant: "destructive",
       });
     }
   };
 
-  if (isLoadingCustomers) {
-    return (
-      <div>Carregando...</div>
-    );
-  }
+  const handleDuplicateBudget = (originalBudget: Budget) => {
+    try {
+      const newBudget: Budget = {
+        ...originalBudget,
+        id: generateId(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        history: [{
+          id: generateId(),
+          date: new Date().toISOString(),
+          action: 'created',
+          description: 'Orçamento duplicado',
+          userId: 'u1',
+        }],
+      };
+
+      addBudget(newBudget);
+      
+      toast({
+        title: "Orçamento duplicado com sucesso",
+        description: `Orçamento #${newBudget.id} criado como cópia de #${originalBudget.id}`,
+      });
+    } catch (error) {
+      console.error("Erro ao duplicar orçamento:", error);
+      toast({
+        title: "Erro ao duplicar orçamento",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFormSubmit = (data: any) => {
+    if (budgetToEdit) {
+      handleUpdateBudget(data);
+    } else {
+      handleCreateBudget(data);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Orçamentos</h1>
-          <p className="text-muted-foreground">Gerencie seus orçamentos e acompanhe o status</p>
-        </div>
-        <Button onClick={handleCreateBudget}>
-          <Plus className="mr-2 h-4 w-4" />
+        <h1 className="text-2xl font-bold">Orçamentos</h1>
+        <Button onClick={() => setIsFormModalOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
           Novo Orçamento
         </Button>
       </div>
@@ -374,80 +411,9 @@ export default function Budgets() {
         </Card>
       </div>
 
-      {/* Filtros e Pesquisa */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Pesquisar orçamentos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
-                Status
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setStatusFilter("all")}>
-                Todos
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("pending")}>
-                Pendentes
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("approved")}>
-                Aprovados
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("rejected")}>
-                Rejeitados
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <FileText className="mr-2 h-4 w-4" />
-                Período
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setDateFilter("all")}>
-                Todos
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDateFilter("today")}>
-                Hoje
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDateFilter("week")}>
-                Última Semana
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDateFilter("month")}>
-                Este Mês
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button variant="outline" onClick={() => {
-            setSearchTerm("");
-            setStatusFilter("all");
-            setDateFilter("all");
-          }}>
-            Limpar Filtros
-          </Button>
-        </div>
-      </div>
-
       {/* Tabela de Orçamentos */}
       <BudgetTable
         budgets={filteredBudgets}
-        onEdit={handleEditBudget}
         onDelete={(id) => {
           const budget = budgets.find(b => b.id === id);
           if (budget) {
@@ -456,155 +422,18 @@ export default function Budgets() {
           }
         }}
         onUpdateStatus={handleUpdateBudgetStatus}
+        onEdit={handleEditBudget}
+        onDuplicate={handleDuplicateBudget}
+        onNew={() => setIsFormModalOpen(true)}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="w-[95%] max-w-[800px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingBudget ? "Editar Orçamento" : "Novo Orçamento"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {/* Seleção de Cliente */}
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="customer">Cliente</Label>
-              <Select
-                value={selectedCustomerId}
-                onValueChange={setSelectedCustomerId}
-              >
-                <SelectTrigger id="customer">
-                  <SelectValue placeholder="Selecione um cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Layout em Duas Colunas */}
-            <div className="space-y-4">
-              {/* Lista de Veículos */}
-              {currentVehicles.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Veículos no Orçamento</Label>
-                    <span className="text-sm text-muted-foreground">
-                      Total: {currentVehicles.length} veículo(s)
-                    </span>
-                  </div>
-                  <Card>
-                    <CardContent className="p-4">
-                      <BudgetVehiclesTable
-                        vehicles={currentVehicles}
-                        onDelete={handleRemoveVehicle}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Formulário de Adição */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Adicionar Veículo</Label>
-                </div>
-                <Card>
-                  <CardContent className="p-4">
-                    <BudgetVehicleForm
-                      onSubmit={handleSubmitVehicle}
-                      onCancel={() => setIsDialogOpen(false)}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!selectedCustomerId) {
-                    toast({
-                      title: "Erro ao salvar orçamento",
-                      description: "Selecione um cliente para continuar",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-
-                  if (currentVehicles.length === 0) {
-                    toast({
-                      title: "Erro ao salvar orçamento",
-                      description: "Adicione pelo menos um veículo ao orçamento",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-
-                  const totalAmount = currentVehicles.reduce(
-                    (sum, vehicle) => sum + vehicle.totalAmount,
-                    0
-                  );
-
-                  const now = new Date().toISOString();
-                  const budget: Budget = {
-                    id: editingBudget?.id || generateId(),
-                    customerId: selectedCustomerId,
-                    vehicles: currentVehicles,
-                    totalAmount,
-                    status: "draft",
-                    createdAt: editingBudget?.createdAt || now,
-                    updatedAt: now,
-                    history: [
-                      ...(editingBudget?.history || []),
-                      {
-                        id: generateId(),
-                        date: now,
-                        action: editingBudget ? "updated" : "created",
-                        description: editingBudget
-                          ? "Orçamento atualizado"
-                          : "Orçamento criado",
-                        userId: "u1",
-                      },
-                    ],
-                  };
-
-                  if (editingBudget) {
-                    updateBudget(budget);
-                  } else {
-                    addBudget(budget);
-                  }
-
-                  toast({
-                    title: editingBudget ? "Orçamento atualizado" : "Orçamento criado",
-                    description: `O orçamento #${budget.id} foi ${
-                      editingBudget ? "atualizado" : "criado"
-                    } com sucesso`,
-                  });
-
-                  setIsDialogOpen(false);
-                  setEditingBudget(null);
-                  setCurrentVehicles([]);
-                  setSelectedCustomerId("");
-                }}
-                disabled={!selectedCustomerId || currentVehicles.length === 0}
-              >
-                {editingBudget ? "Salvar Alterações" : "Criar Orçamento"}
-              </Button>
-            </div>
-          </div>
-
-        </DialogContent>
-      </Dialog>
+      <BudgetFormModal
+        open={isFormModalOpen}
+        onOpenChange={setIsFormModalOpen}
+        onSubmit={handleFormSubmit}
+        defaultValues={budgetToEdit}
+        mode={budgetToEdit ? "edit" : "create"}
+      />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>

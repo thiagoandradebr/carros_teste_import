@@ -7,6 +7,9 @@ import Customers from "@/pages/Customers";
 import Drivers from "@/pages/Drivers";
 import Vehicles from "@/pages/Vehicles";
 import Settings from "@/pages/Settings";
+import Hora from "@/pages/Hora"; 
+import VehicleMaintenance from "@/pages/VehicleMaintenance";
+import CompanySettings from "@/pages/CompanySettings";
 
 export const router = createBrowserRouter([
   {
@@ -42,8 +45,16 @@ export const router = createBrowserRouter([
         element: <Vehicles />,
       },
       {
+        path: "vehicles/maintenance",
+        element: <VehicleMaintenance />,
+      },
+      {
         path: "settings",
         element: <Settings />,
+      },
+      {
+        path: "company-settings",
+        element: <CompanySettings />,
       },
     ],
   },

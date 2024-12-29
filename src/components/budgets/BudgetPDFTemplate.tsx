@@ -1,76 +1,228 @@
 import { Budget } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { mockCustomers } from "@/mocks/customers";
-import { mockVehicles } from "@/mocks/vehicles";
+import { useCustomers } from "@/contexts/CustomersContext";
 import { mockSettings } from "@/mocks/settings";
+import { useVehicles } from "@/contexts/VehiclesContext";
 
 interface BudgetPDFTemplateProps {
   budget: Budget;
 }
 
 export function BudgetPDFTemplate({ budget }: BudgetPDFTemplateProps) {
-  const customer = mockCustomers.find((c) => c.id === budget.customerId);
+  const { customers } = useCustomers();
+  const { vehicles } = useVehicles();
+  const customer = customers.find((c) => c.id === budget.customerId);
   const settings = mockSettings;
 
   return (
-    <div className="p-8 bg-white" id="budget-pdf">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Orçamento #{budget.id}</h1>
-        <p className="text-gray-500">Data: {formatDate(budget.createdAt)}</p>
+    <div style={{
+      padding: '32px',
+      background: 'white',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      width: '210mm',
+      minHeight: '297mm',
+      color: '#000'
+    }}>
+      {/* Cabeçalho */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '32px',
+        borderBottom: '1px solid #e5e7eb',
+        paddingBottom: '16px'
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: '#111827',
+            marginBottom: '8px'
+          }}>Orçamento #{budget.id}</h1>
+          <p style={{ color: '#6b7280', marginBottom: '4px' }}>Data: {formatDate(budget.createdAt)}</p>
+          <p style={{ color: '#6b7280' }}>Status: {
+            budget.status === 'approved' ? 'Aprovado' :
+            budget.status === 'pending' ? 'Pendente' :
+            budget.status === 'rejected' ? 'Rejeitado' : 'Rascunho'
+          }</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: '#111827'
+          }}>{settings.name}</h2>
+          <p style={{ color: '#6b7280' }}>CNPJ: {settings.document}</p>
+        </div>
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-2">Dados do Cliente</h2>
-        <p>Nome: {customer?.name || "Cliente não encontrado"}</p>
-        <p>Email: {customer?.email || "N/A"}</p>
-        <p>Telefone: {customer?.phone || "N/A"}</p>
+      {/* Dados do Cliente */}
+      <div style={{
+        marginBottom: '32px',
+        backgroundColor: '#f9fafb',
+        padding: '16px',
+        borderRadius: '8px'
+      }}>
+        <h2 style={{
+          fontSize: '20px',
+          fontWeight: 'bold',
+          color: '#111827',
+          marginBottom: '12px'
+        }}>Dados do Cliente</h2>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '16px'
+        }}>
+          <div>
+            <p style={{ color: '#6b7280', marginBottom: '4px' }}>Nome:</p>
+            <p style={{ fontWeight: '500' }}>{customer?.name || "Cliente não encontrado"}</p>
+          </div>
+          <div>
+            <p style={{ color: '#6b7280', marginBottom: '4px' }}>Email:</p>
+            <p style={{ fontWeight: '500' }}>{customer?.email || "N/A"}</p>
+          </div>
+          <div>
+            <p style={{ color: '#6b7280', marginBottom: '4px' }}>Telefone:</p>
+            <p style={{ fontWeight: '500' }}>{customer?.phone || "N/A"}</p>
+          </div>
+          {customer?.document && (
+            <div>
+              <p style={{ color: '#6b7280', marginBottom: '4px' }}>Documento:</p>
+              <p style={{ fontWeight: '500' }}>{customer.document}</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Veículos</h2>
-        <table className="w-full">
+      {/* Veículos */}
+      <div style={{ marginBottom: '32px' }}>
+        <h2 style={{
+          fontSize: '20px',
+          fontWeight: 'bold',
+          color: '#111827',
+          marginBottom: '16px'
+        }}>Veículos</h2>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          marginBottom: '16px'
+        }}>
           <thead>
-            <tr className="border-b">
-              <th className="text-left py-2">Veículo</th>
-              <th className="text-left py-2">Período</th>
-              <th className="text-left py-2">Diária</th>
-              <th className="text-right py-2">Total</th>
+            <tr style={{ backgroundColor: '#f9fafb' }}>
+              <th style={{
+                textAlign: 'left',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '600'
+              }}>Veículo</th>
+              <th style={{
+                textAlign: 'left',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '600'
+              }}>Período</th>
+              <th style={{
+                textAlign: 'left',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '600'
+              }}>Tipo</th>
+              <th style={{
+                textAlign: 'right',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '600'
+              }}>Diária</th>
+              <th style={{
+                textAlign: 'right',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '600'
+              }}>Total</th>
             </tr>
           </thead>
           <tbody>
             {budget.vehicles.map((budgetVehicle) => {
-              const vehicle = mockVehicles.find(v => v.id === budgetVehicle.vehicleId);
+              const vehicle = vehicles.find(v => v.id === budgetVehicle.vehicleId);
               return (
-                <tr key={budgetVehicle.id} className="border-b">
-                  <td className="py-2">
-                    {vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : 'Veículo não encontrado'}
+                <tr key={budgetVehicle.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '12px 16px' }}>
+                    <p style={{ fontWeight: '500' }}>{budgetVehicle.vehicleName}</p>
+                    {vehicle?.plate && (
+                      <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                        Placa: {vehicle.plate}
+                      </p>
+                    )}
                   </td>
-                  <td className="py-2">
-                    {formatDate(budgetVehicle.startDate)} - {formatDate(budgetVehicle.endDate)}
+                  <td style={{ padding: '12px 16px' }}>
+                    <p>{formatDate(budgetVehicle.startDate)}</p>
+                    <p style={{ fontSize: '14px', color: '#6b7280' }}>até</p>
+                    <p>{formatDate(budgetVehicle.endDate)}</p>
                   </td>
-                  <td className="py-2">{formatCurrency(budgetVehicle.dailyRate)}</td>
-                  <td className="py-2 text-right">{formatCurrency(budgetVehicle.totalAmount)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {budgetVehicle.serviceType === 'DAILY_10H' ? 'Diária 10h' :
+                     budgetVehicle.serviceType === 'DAILY_12H' ? 'Diária 12h' : 'Transfer'}
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    {formatCurrency(budgetVehicle.dailyRate)}
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '500' }}>
+                    {formatCurrency(budgetVehicle.totalAmount)}
+                  </td>
                 </tr>
               );
             })}
+            <tr style={{ backgroundColor: '#f9fafb', fontWeight: 'bold' }}>
+              <td colSpan={4} style={{ padding: '16px', textAlign: 'right' }}>
+                Valor Total:
+              </td>
+              <td style={{ padding: '16px', textAlign: 'right' }}>
+                {formatCurrency(budget.totalAmount)}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="text-right mb-8">
-        <p className="text-lg font-semibold">
-          Valor Total: {formatCurrency(budget.totalAmount)}
-        </p>
+      {/* Observações e Termos */}
+      <div style={{
+        marginBottom: '32px',
+        fontSize: '14px',
+        color: '#6b7280'
+      }}>
+        <p style={{ marginBottom: '4px' }}>* Os valores apresentados são válidos por 7 dias.</p>
+        <p style={{ marginBottom: '4px' }}>* O pagamento deve ser realizado conforme as condições acordadas.</p>
+        <p style={{ marginBottom: '4px' }}>* As diárias incluem seguro conforme especificado em contrato.</p>
       </div>
 
-      <div className="border-t pt-8">
-        <h2 className="text-xl font-semibold mb-4">Dados da Empresa</h2>
-        <div className="text-sm text-gray-600">
-          <p className="mb-1">{settings.name}</p>
-          <p className="mb-1">CNPJ: {settings.document}</p>
-          <p className="mb-1">Email: {settings.email}</p>
-          <p className="mb-1">Telefone: {settings.phone}</p>
-          <p className="mb-1">Endereço: {settings.address}</p>
+      {/* Rodapé com Dados da Empresa */}
+      <div style={{
+        borderTop: '1px solid #e5e7eb',
+        paddingTop: '16px',
+        marginTop: 'auto'
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '16px',
+          fontSize: '14px',
+          color: '#6b7280'
+        }}>
+          <div>
+            <p style={{ marginBottom: '4px' }}>{settings.name}</p>
+            <p style={{ marginBottom: '4px' }}>CNPJ: {settings.document}</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ marginBottom: '4px' }}>Email: {settings.email}</p>
+            <p style={{ marginBottom: '4px' }}>Telefone: {settings.phone}</p>
+            <p style={{ marginBottom: '4px' }}>{settings.address}</p>
+          </div>
         </div>
       </div>
     </div>

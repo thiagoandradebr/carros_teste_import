@@ -1,6 +1,8 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { z } from "zod";
+import { useState, useRef } from "react";
+import { Driver } from "@/types/driver";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -11,245 +13,418 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Driver } from "@/types";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/use-toast";
-import { mockDrivers } from "@/mocks/drivers";
+import { Textarea } from "@/components/ui/textarea";
 import { MaskedInput } from "@/components/ui/masked-input";
-import { formatCPFCNPJ, unformatDocument, validateCPFCNPJ } from "@/lib/format";
-import { FileUpload } from "@/components/ui/file-upload";
-import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { 
+  User, 
+  Phone, 
+  FileText, 
+  ClockIcon, 
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+  Upload,
+  X
+} from "lucide-react";
+
+interface FormSectionProps {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+// 1. Definição das seções
+const formSections = {
+  basicInfo: {
+    title: "Informações Básicas",
+    icon: <User className="w-4 h-4" />,
+    fields: [
+      {
+        name: "name",
+        label: "Nome Completo",
+        type: "input"
+      },
+      {
+        name: "cpf",
+        label: "CPF",
+        type: "masked-input",
+        mask: "999.999.999-99"
+      },
+      {
+        name: "cnh",
+        label: "CNH",
+        type: "masked-input",
+        mask: "999999999999" // Máscara para CNH com 12 dígitos
+      }
+    ]
+  },
+
+  contact: {
+    title: "Contato",
+    icon: <Phone className="w-4 h-4" />,
+    fields: [
+      {
+        name: "email",
+        label: "Email",
+        type: "input"
+      },
+      {
+        name: "phone",
+        label: "Telefone",
+        type: "masked-input",
+        mask: "(99) 99999-9999"
+      }
+    ]
+  },
+
+  documents: {
+    title: "Documentos",
+    icon: <FileText className="w-4 h-4" />,
+    fields: [
+      {
+        name: "driverPhoto",
+        label: "Foto do Motorista",
+        type: "file-upload",
+        accept: "image/*",
+        maxSize: 5242880, // 5MB
+        helperText: "Arraste uma foto ou clique para fazer upload. JPG ou PNG até 5MB"
+      },
+      {
+        name: "cnhPhoto",
+        label: "Foto da CNH",
+        type: "file-upload",
+        accept: "image/*",
+        maxSize: 5242880, // 5MB
+        helperText: "Arraste uma foto ou clique para fazer upload. JPG ou PNG até 5MB"
+      }
+    ]
+  },
+
+  history: {
+    title: "Histórico",
+    icon: <ClockIcon className="w-4 h-4" />,
+    fields: [
+      {
+        name: "trips",
+        label: "Viagens",
+        type: "table"
+      }
+    ]
+  },
+
+  notes: {
+    title: "Observações",
+    icon: <MessageSquare className="w-4 h-4" />,
+    fields: [
+      {
+        name: "notes",
+        label: "Observações",
+        type: "textarea"
+      }
+    ]
+  }
+};
+
+// 2. Componente de Seção
+const FormSection = ({ 
+  title, 
+  icon, 
+  children,
+  isOpen,
+  onToggle 
+}: FormSectionProps) => {
+  return (
+    <Card className="mb-4">
+      <div 
+        className="p-4 flex items-center cursor-pointer" 
+        onClick={onToggle}
+      >
+        <div className="flex items-center flex-1">
+          {icon}
+          <h2 className="text-lg font-semibold ml-2">{title}</h2>
+        </div>
+        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </div>
+      {isOpen && (
+        <CardContent>
+          {children}
+        </CardContent>
+      )}
+    </Card>
+  );
+};
 
 interface DriverFormProps {
   driver?: Driver;
-  onSuccess?: () => void;
+  onSuccess?: (data: Driver) => void;
+  onCancel?: () => void;
 }
 
-const formSchema = z.object({
-  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  cpf: z.string()
-    .min(14, "CPF inválido")
-    .refine((val) => validateCPFCNPJ(val), "CPF inválido"),
-  cnh: z.string()
-    .min(11, "CNH inválida")
-    .regex(/^\d+$/, "CNH deve conter apenas números"),
-  cnhValidity: z.string()
-    .min(1, "Data de validade é obrigatória")
-    .refine((date) => {
-      const validityDate = new Date(date);
-      const today = new Date();
-      return validityDate > today;
-    }, "CNH vencida"),
-  phone: z.string()
-    .min(14, "Telefone inválido")
-    .max(15, "Telefone inválido"),
-});
+interface FileUploadFieldProps {
+  onChange: (file: File | null) => void;
+  value: File | null;
+  accept: string;
+  maxSize: number;
+  label: string;
+  helperText?: string;
+}
 
-export function DriverForm({ driver, onSuccess }: DriverFormProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [photo, setPhoto] = useState<string | undefined>(driver?.photo);
-  const [cnhDocument, setCnhDocument] = useState<string | undefined>(driver?.cnhDocument);
+const FileUploadField = ({ onChange, value, accept, maxSize, label, helperText }: FileUploadFieldProps) => {
+  const [preview, setPreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: driver?.name || "",
-      cpf: driver?.cpf ? formatCPFCNPJ(driver.cpf) : "",
-      cnh: driver?.cnh || "",
-      cnhValidity: driver?.cnhValidity || "",
-      phone: driver?.phone || "",
-    },
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > maxSize) {
+        alert(`Arquivo muito grande. Tamanho máximo: ${maxSize / 1024 / 1024}MB`);
+        e.target.value = '';
+        return;
+      }
+
+      onChange(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemove = () => {
+    onChange(null);
+    setPreview(null);
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {!preview ? (
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer"
+             onClick={() => inputRef.current?.click()}>
+          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+          <div className="mt-2">
+            <p className="text-sm font-semibold">{label}</p>
+            {helperText && <p className="text-sm text-muted-foreground mt-1">{helperText}</p>}
+          </div>
+        </div>
+      ) : (
+        <div className="relative">
+          <img
+            src={preview}
+            alt="Preview"
+            className="w-full h-48 object-cover rounded-lg"
+          />
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+    </div>
+  );
+};
+
+// Função auxiliar para renderizar campos
+const renderField = (fieldConfig: any, field: any) => {
+  switch (fieldConfig.type) {
+    case "input":
+      return <Input {...field} />;
+    case "masked-input":
+      return <MaskedInput {...field} mask={fieldConfig.mask} />;
+    case "textarea":
+      return <Textarea {...field} />;
+    case "file-upload":
+      return (
+        <FileUploadField
+          onChange={field.onChange}
+          value={field.value}
+          accept={fieldConfig.accept}
+          maxSize={fieldConfig.maxSize}
+          label={fieldConfig.label}
+          helperText={fieldConfig.helperText}
+        />
+      );
+    case "select":
+      return (
+        <Select
+          onValueChange={field.onChange}
+          defaultValue={field.value}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={fieldConfig.placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {fieldConfig.options.map((option: any) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    default:
+      return null;
+  }
+};
+
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, 
+        v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+export function DriverForm({ driver, onSuccess, onCancel }: DriverFormProps) {
+  const [openSections, setOpenSections] = useState({
+    basicInfo: true,
+    contact: true,
+    documents: false,
+    history: false,
+    notes: false
   });
 
-  const handlePhotoUpload = (file: File) => {
-    // Simula o upload do arquivo e retorna uma URL temporária
-    const url = URL.createObjectURL(file);
-    setPhoto(url);
-  };
-
-  const handleCnhDocumentUpload = (file: File) => {
-    // Simula o upload do arquivo e retorna uma URL temporária
-    const url = URL.createObjectURL(file);
-    setCnhDocument(url);
-  };
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      const formattedValues: Driver = {
-        id: driver?.id || Math.random().toString(36).substr(2, 9),
-        name: values.name,
-        cpf: unformatDocument(values.cpf),
-        cnh: values.cnh,
-        cnhValidity: values.cnhValidity,
-        phone: values.phone,
-        photo,
-        cnhDocument,
-        status: "active",
-        address: {
-          cep: "",
-          street: "",
-          number: "",
-          complement: "",
-          neighborhood: "",
-          city: "",
-          state: ""
-        },
-        cnhPoints: 0,
-        updatedAt: ""
-      };
-
-      if (driver) {
-        // Simulando uma chamada de API com setTimeout
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log('Atualizando motorista:', formattedValues);
-        
-        // Atualiza os dados mockados
-        const index = mockDrivers.findIndex(d => d.id === driver.id);
-        if (index !== -1) {
-          mockDrivers[index] = formattedValues;
-        }
-        
-        toast({
-          title: "Motorista atualizado com sucesso",
-          description: `${values.name} foi atualizado(a)`,
-        });
-      } else {
-        // Simulando uma chamada de API com setTimeout
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log('Criando novo motorista:', formattedValues);
-        
-        // Adiciona aos dados mockados
-        mockDrivers.push(formattedValues);
-        
-        toast({
-          title: "Motorista criado com sucesso",
-          description: `${values.name} foi cadastrado(a)`,
-        });
-      }
-      
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
-      onSuccess?.();
-    } catch (error) {
-      console.error('Erro ao salvar motorista:', error);
-      toast({
-        title: "Erro ao salvar motorista",
-        description: "Tente novamente mais tarde",
-        variant: "destructive",
-      });
+  const form = useForm({
+    defaultValues: {
+      name: driver?.name || "",
+      cpf: driver?.cpf || "",
+      cnh: driver?.cnh || "",
+      email: driver?.email || "",
+      phone: driver?.phone || "",
+      notes: driver?.notes || "",
     }
-  }
+  });
+
+  const onSubmit = (data: any) => {
+    if (onSuccess) {
+      const formattedData: Driver = {
+        ...data,
+        id: driver?.id || generateUUID(),
+        status: driver?.status || "active",
+        updatedAt: new Date().toISOString(),
+      };
+      onSuccess(formattedData);
+    }
+  };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nome completo" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="cpf"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CPF</FormLabel>
-                  <FormControl>
-                    <MaskedInput
-                      mask="999.999.999-99"
-                      placeholder="000.000.000-00"
-                      {...field}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {Object.entries(formSections).map(([key, section]) => (
+          <FormSection
+            key={key}
+            title={section.title}
+            icon={section.icon}
+            isOpen={openSections[key as keyof typeof openSections]}
+            onToggle={() => setOpenSections(prev => ({
+              ...prev,
+              [key]: !prev[key as keyof typeof openSections]
+            }))}
+          >
+            {key === 'basicInfo' ? (
+              <div className="flex items-start space-x-4">
+                <div className="w-[40%]">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome Completo</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="w-full" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="w-[30%]">
+                  <FormField
+                    control={form.control}
+                    name="cpf"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CPF</FormLabel>
+                        <FormControl>
+                          <MaskedInput {...field} mask="999.999.999-99" className="w-full" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="w-[30%]">
+                  <FormField
+                    control={form.control}
+                    name="cnh"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CNH</FormLabel>
+                        <FormControl>
+                          <MaskedInput {...field} mask="999999999999" className="w-full" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {section.fields.map(field => (
+                  !field.showIf || field.showIf(form.getValues()) ? (
+                    <FormField
+                      key={field.name}
+                      control={form.control}
+                      name={field.name}
+                      render={({ field: formField }) => (
+                        <FormItem>
+                          <FormLabel>{field.label}</FormLabel>
+                          <FormControl>
+                            {renderField(field, formField)}
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  ) : null
+                ))}
+              </div>
+            )}
+          </FormSection>
+        ))}
 
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Telefone</FormLabel>
-                  <FormControl>
-                    <MaskedInput
-                      mask="(99) 99999-9999"
-                      placeholder="(00) 00000-0000"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="cnh"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CNH</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Número da CNH" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="cnhValidity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Validade da CNH</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormItem>
-              <FormLabel>Foto do Motorista</FormLabel>
-              <FileUpload
-                accept="image/*"
-                value={photo}
-                onChange={handlePhotoUpload}
-              />
-              <FormMessage />
-            </FormItem>
-
-            <FormItem>
-              <FormLabel>Documento da CNH</FormLabel>
-              <FileUpload
-                accept=".pdf,image/*"
-                value={cnhDocument}
-                onChange={handleCnhDocumentUpload}
-              />
-              <FormMessage />
-            </FormItem>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-4 mt-4">
+          {onCancel && (
+            <Button variant="outline" onClick={onCancel}>
+              Cancelar
+            </Button>
+          )}
           <Button type="submit">
-            {driver ? "Atualizar" : "Cadastrar"} Motorista
+            {driver ? "Atualizar" : "Cadastrar"}
           </Button>
         </div>
       </form>

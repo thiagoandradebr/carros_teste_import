@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { Card } from "@/components/ui/card";
 import { Car, Users, Calendar, TrendingUp } from "lucide-react";
+import Hora from './Hora';
 
 export default function Index() {
   // Dados mockados para demonstração
@@ -77,3 +78,5 @@ export default function Index() {
     </Layout>
   );
 }
+
+export { Index, Hora }

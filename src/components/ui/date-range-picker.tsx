@@ -14,7 +14,7 @@ import {
 
 interface DatePickerWithRangeProps {
   className?: string;
-  date: DateRange | undefined;
+  date?: DateRange;
   onDateChange: (date: DateRange | undefined) => void;
 }
 
@@ -23,9 +23,25 @@ export function DatePickerWithRange({
   date,
   onDateChange,
 }: DatePickerWithRangeProps) {
+  const [tempDate, setTempDate] = React.useState<DateRange | undefined>(date);
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setTempDate(date);
+  }, [date]);
+
+  const handleSelect = (selectedDate: DateRange | undefined) => {
+    setTempDate(selectedDate);
+  };
+
+  const handleConfirm = () => {
+    onDateChange(tempDate);
+    setOpen(false);
+  };
+
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
@@ -51,15 +67,27 @@ export function DatePickerWithRange({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={onDateChange}
-            numberOfMonths={2}
-            locale={ptBR}
-          />
+          <div className="space-y-3 p-3">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={date?.from}
+              selected={tempDate}
+              onSelect={handleSelect}
+              numberOfMonths={2}
+              locale={ptBR}
+            />
+            <div className="flex justify-end border-t pt-3">
+              <Button
+                variant="default"
+                className="w-[120px]"
+                onClick={handleConfirm}
+                disabled={!tempDate?.from || !tempDate?.to}
+              >
+                Confirmar
+              </Button>
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

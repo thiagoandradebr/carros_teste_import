@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fundo circular -->
+  <circle cx="256" cy="256" r="240" fill="#f0f0f0"/>
+  
+  <!-- Carro estilizado -->
+  <g transform="translate(96, 200) scale(0.8)">
+    <!-- Corpo do carro -->
+    <path d="M50,180 L350,180 L380,140 C380,140 390,130 400,130 L420,130 C420,130 400,90 380,90 L330,90 L300,50 L100,50 L70,90 L20,90 C20,90 0,130 0,130 L20,130 C20,130 30,130 40,140 L50,180" fill="#2563eb"/>
+    
+    <!-- Janelas -->
+    <path d="M120,90 L280,90 L300,130 L100,130 Z" fill="#ffffff"/>
+    
+    <!-- Rodas -->
+    <circle cx="100" cy="180" r="40" fill="#1e293b"/>
+    <circle cx="300" cy="180" r="40" fill="#1e293b"/>
+    <circle cx="100" cy="180" r="20" fill="#94a3b8"/>
+    <circle cx="300" cy="180" r="20" fill="#94a3b8"/>
+  </g>
+  
+  <!-- Setas de logística -->
+  <g transform="translate(256, 256) rotate(45)">
+    <path d="M-120,-20 L-80,-20 L-80,-40 L-20,0 L-80,40 L-80,20 L-120,20 Z" fill="#2563eb"/>
+    <path d="M20,-20 L60,-20 L60,-40 L120,0 L60,40 L60,20 L20,20 Z" fill="#2563eb"/>
+  </g>
+</svg>

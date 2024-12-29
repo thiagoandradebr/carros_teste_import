@@ -1,4 +1,5 @@
 import { StatsCard } from "@/components/dashboard/stats-card";
+import { QuickActions } from "@/components/dashboard/QuickActions";
 import { mockCustomers } from "@/mocks/customers";
 import { mockDrivers } from "@/mocks/drivers";
 import { mockRentals } from "@/mocks/rentals";
@@ -60,157 +61,168 @@ export default function Dashboard() {
   const conversionRate = ((approvedBudgets / totalBudgets) * 100).toFixed(1);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="container mx-auto py-10 space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
         <p className="text-muted-foreground">
-          Visão geral do sistema de locação de veículos
+          Bem-vindo ao Car Rental Harmony
         </p>
       </div>
 
-      {/* Principais Indicadores */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Total de Clientes"
-          value={totalCustomers}
-          icon={Users}
-          trend={{ value: Number(customerGrowth), isPositive: true }}
-          description={`${activeCustomers} clientes ativos`}
-        />
-
-        <StatsCard
-          title="Receita Total"
-          value={formatCurrency(totalRevenue)}
-          icon={TrendingUp}
-          trend={{ value: revenueGrowth, isPositive: true }}
-          description="Receita acumulada no período"
-        />
-
-        <StatsCard
-          title="Frota de Veículos"
-          value={totalVehicles}
-          icon={Car}
-          description={`${availableVehicles} disponíveis • ${maintenanceVehicles} em manutenção`}
-        />
-
-        <StatsCard
-          title="Motoristas"
-          value={totalDrivers}
-          icon={Truck}
-          trend={{ value: Number(driverGrowth), isPositive: true }}
-          description={`${activeDrivers} motoristas ativos • ${trainingDrivers} em treinamento`}
-        />
+      <div className="space-y-8">
+        <h2 className="text-2xl font-semibold">Ações Rápidas</h2>
+        <QuickActions />
       </div>
 
-      {/* Status das Locações */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Status das Locações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid gap-4 grid-cols-2">
-                <StatsCard
-                  title="Locações Ativas"
-                  value={activeRentals}
-                  icon={Calendar}
-                  className="bg-green-50"
-                  description="Em andamento"
-                />
+      <div className="space-y-8">
+        <h2 className="text-2xl font-semibold">Visão Geral</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Total de Clientes"
+            value={totalCustomers}
+            icon={Users}
+            trend={{ value: Number(customerGrowth), isPositive: true }}
+            description={`${activeCustomers} clientes ativos`}
+          />
 
-                <StatsCard
-                  title="Locações Pendentes"
-                  value={pendingRentals}
-                  icon={Clock}
-                  className="bg-yellow-50"
-                  description="Aguardando aprovação"
-                />
-              </div>
+          <StatsCard
+            title="Receita Total"
+            value={formatCurrency(totalRevenue)}
+            icon={TrendingUp}
+            trend={{ value: revenueGrowth, isPositive: true }}
+            description="Receita acumulada no período"
+          />
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Taxa de Ocupação da Frota</span>
-                  <span className="font-medium">{((rentedVehicles / totalVehicles) * 100).toFixed(1)}%</span>
+          <StatsCard
+            title="Frota de Veículos"
+            value={totalVehicles}
+            icon={Car}
+            description={`${availableVehicles} disponíveis • ${maintenanceVehicles} em manutenção`}
+          />
+
+          <StatsCard
+            title="Motoristas"
+            value={totalDrivers}
+            icon={Truck}
+            trend={{ value: Number(driverGrowth), isPositive: true }}
+            description={`${activeDrivers} motoristas ativos • ${trainingDrivers} em treinamento`}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        <h2 className="text-2xl font-semibold">Status das Locações</h2>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Status das Locações</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid gap-4 grid-cols-2">
+                  <StatsCard
+                    title="Locações Ativas"
+                    value={activeRentals}
+                    icon={Calendar}
+                    className="bg-green-50"
+                    description="Em andamento"
+                  />
+
+                  <StatsCard
+                    title="Locações Pendentes"
+                    value={pendingRentals}
+                    icon={Clock}
+                    className="bg-yellow-50"
+                    description="Aguardando aprovação"
+                  />
                 </div>
-                <Progress value={(rentedVehicles / totalVehicles) * 100} className="h-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Desempenho Comercial</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid gap-4 grid-cols-2">
-                <StatsCard
-                  title="Orçamentos Aprovados"
-                  value={`${conversionRate}%`}
-                  icon={FileText}
-                  className="bg-blue-50"
-                  description={`${approvedBudgets} de ${totalBudgets} orçamentos`}
-                />
-
-                <StatsCard
-                  title="Ticket Médio"
-                  value={formatCurrency(totalRevenue / completedRentals)}
-                  icon={DollarSign}
-                  className="bg-purple-50"
-                  description="Por locação concluída"
-                />
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Taxa de Ocupação da Frota</span>
+                    <span className="font-medium">{((rentedVehicles / totalVehicles) * 100).toFixed(1)}%</span>
+                  </div>
+                  <Progress value={(rentedVehicles / totalVehicles) * 100} className="h-2" />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Desempenho Comercial</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid gap-4 grid-cols-2">
+                  <StatsCard
+                    title="Orçamentos Aprovados"
+                    value={`${conversionRate}%`}
+                    icon={FileText}
+                    className="bg-blue-50"
+                    description={`${approvedBudgets} de ${totalBudgets} orçamentos`}
+                  />
+
+                  <StatsCard
+                    title="Ticket Médio"
+                    value={formatCurrency(totalRevenue / completedRentals)}
+                    icon={DollarSign}
+                    className="bg-purple-50"
+                    description="Por locação concluída"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Alertas e Manutenção */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="col-span-full">
-          <CardHeader>
-            <CardTitle>Alertas do Sistema</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <StatsCard
-                title="Veículos para Manutenção"
-                value={vehiclesNeedingMaintenance}
-                icon={Wrench}
-                className="bg-orange-50"
-                description="Necessitam revisão"
-              />
+      <div className="space-y-8">
+        <h2 className="text-2xl font-semibold">Alertas e Manutenção</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="col-span-full">
+            <CardHeader>
+              <CardTitle>Alertas do Sistema</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatsCard
+                  title="Veículos para Manutenção"
+                  value={vehiclesNeedingMaintenance}
+                  icon={Wrench}
+                  className="bg-orange-50"
+                  description="Necessitam revisão"
+                />
 
-              <StatsCard
-                title="CNHs Próximas do Vencimento"
-                value={mockDrivers.filter(d => {
-                  const validity = new Date(d.cnhValidity);
-                  const threeMothsFromNow = new Date();
-                  threeMothsFromNow.setMonth(threeMothsFromNow.getMonth() + 3);
-                  return validity <= threeMothsFromNow;
-                }).length}
-                icon={AlertTriangle}
-                className="bg-yellow-50"
-                description="Nos próximos 3 meses"
-              />
+                <StatsCard
+                  title="CNHs Próximas do Vencimento"
+                  value={mockDrivers.filter(d => {
+                    const validity = new Date(d.cnhValidity);
+                    const threeMothsFromNow = new Date();
+                    threeMothsFromNow.setMonth(threeMothsFromNow.getMonth() + 3);
+                    return validity <= threeMothsFromNow;
+                  }).length}
+                  icon={AlertTriangle}
+                  className="bg-yellow-50"
+                  description="Nos próximos 3 meses"
+                />
 
-              <StatsCard
-                title="Contratos a Vencer"
-                value={mockRentals.filter(r => {
-                  const endDate = new Date(r.endDate);
-                  const oneWeekFromNow = new Date();
-                  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-                  return endDate <= oneWeekFromNow && r.status === "active";
-                }).length}
-                icon={AlertCircle}
-                className="bg-red-50"
-                description="Nos próximos 7 dias"
-              />
-            </div>
-          </CardContent>
-        </Card>
+                <StatsCard
+                  title="Contratos a Vencer"
+                  value={mockRentals.filter(r => {
+                    const endDate = new Date(r.endDate);
+                    const oneWeekFromNow = new Date();
+                    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+                    return endDate <= oneWeekFromNow && r.status === "active";
+                  }).length}
+                  icon={AlertCircle}
+                  className="bg-red-50"
+                  description="Nos próximos 7 dias"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

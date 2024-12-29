@@ -1,44 +1,72 @@
-import { createContext, useContext, ReactNode } from 'react';
-import { Customer } from '@/types';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockCustomers } from '@/mocks/customers';
+import { createContext, useContext, useState, useEffect } from "react";
+import { Customer, CustomerStatus } from "@/types/customer";
+import { saveCustomer, loadCustomers, removeCustomer as removeCustomerFromStorage } from "@/services/customerStorage";
 
-interface CustomersContextType {
+interface CustomersContextData {
   customers: Customer[];
   addCustomer: (customer: Customer) => void;
-  updateCustomer: (customer: Customer) => void;
-  deleteCustomer: (customerId: string) => void;
-  getCustomerById: (customerId: string) => Customer | undefined;
+  updateCustomer: (id: string, customer: Partial<Customer>) => void;
+  removeCustomer: (id: string) => void;
+  updateCustomerStatus: (id: string, status: CustomerStatus) => void;
 }
 
-const CustomersContext = createContext<CustomersContextType | undefined>(undefined);
+const CustomersContext = createContext<CustomersContextData>({} as CustomersContextData);
 
-export function CustomersProvider({ children }: { children: ReactNode }) {
-  const [customers, setCustomers] = useLocalStorage<Customer[]>('customers', mockCustomers);
+export function CustomersProvider({ children }: { children: React.ReactNode }) {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  useEffect(() => {
+    const loadedCustomers = loadCustomers();
+    setCustomers(loadedCustomers);
+  }, []);
 
   const addCustomer = (customer: Customer) => {
-    setCustomers(prev => [...prev, {
-      ...customer,
-      updatedAt: new Date().toISOString()
-    }]);
+    console.log("Adicionando cliente no contexto:", customer);
+    setCustomers((prev) => {
+      const updated = [...prev, customer];
+      saveCustomer(updated);
+      return updated;
+    });
   };
 
-  const updateCustomer = (updatedCustomer: Customer) => {
-    setCustomers(prev =>
-      prev.map(customer =>
-        customer.id === updatedCustomer.id
-          ? { ...updatedCustomer, updatedAt: new Date().toISOString() }
-          : customer
-      )
-    );
+  const updateCustomer = (id: string, customer: Partial<Customer>) => {
+    setCustomers((prev) => {
+      const updated = prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              ...customer,
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      );
+      saveCustomer(updated);
+      return updated;
+    });
   };
 
-  const deleteCustomer = (customerId: string) => {
-    setCustomers(prev => prev.filter(customer => customer.id !== customerId));
+  const updateCustomerStatus = (id: string, status: CustomerStatus) => {
+    setCustomers((prev) => {
+      const updated = prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status,
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      );
+      saveCustomer(updated);
+      return updated;
+    });
   };
 
-  const getCustomerById = (customerId: string) => {
-    return customers.find(customer => customer.id === customerId);
+  const removeCustomer = (id: string) => {
+    setCustomers((prev) => {
+      const updated = prev.filter((customer) => customer.id !== id);
+      removeCustomerFromStorage(id);
+      return updated;
+    });
   };
 
   return (
@@ -47,8 +75,8 @@ export function CustomersProvider({ children }: { children: ReactNode }) {
         customers,
         addCustomer,
         updateCustomer,
-        deleteCustomer,
-        getCustomerById,
+        removeCustomer,
+        updateCustomerStatus,
       }}
     >
       {children}
@@ -56,10 +84,4 @@ export function CustomersProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCustomers() {
-  const context = useContext(CustomersContext);
-  if (context === undefined) {
-    throw new Error('useCustomers must be used within a CustomersProvider');
-  }
-  return context;
-}
+export const useCustomers = () => useContext(CustomersContext);

@@ -1,13 +1,16 @@
-import { Vehicle } from "@/types";
+import { Vehicle } from "@/types/vehicle";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { vehicleStatusConfig } from "@/utils/statusUtils";
+import { Badge } from "@/components/ui/badge";
 
 interface VehicleDetailsProps {
-  vehicle: Vehicle | null;
+  vehicle: Vehicle;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -21,65 +24,86 @@ export function VehicleDetails({ vehicle, open, onOpenChange }: VehicleDetailsPr
         <DialogHeader>
           <DialogTitle>Detalhes do Veículo</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
           <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Marca</h4>
-            <p className="text-sm">{vehicle.brand}</p>
+            <h4 className="font-semibold mb-1">Tipo de Veículo</h4>
+            <Badge variant="secondary">
+              {vehicle.ownership === "company" ? "Veículo da Empresa" : "Veículo Próprio"}
+            </Badge>
           </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Modelo</h4>
-            <p className="text-sm">{vehicle.model}</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold mb-1">Marca</h4>
+              <p>{vehicle.brand}</p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Modelo</h4>
+              <p>{vehicle.model}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Ano</h4>
-            <p className="text-sm">{vehicle.year}</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold mb-1">Ano</h4>
+              <p>{vehicle.year}</p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Placa</h4>
+              <p>{vehicle.plate}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Placa</h4>
-            <p className="text-sm">{vehicle.plate}</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold mb-1">Cor</h4>
+              <p>{vehicle.color}</p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Categoria</h4>
+              <p>{vehicle.category}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Cor</h4>
-            <p className="text-sm">{vehicle.color}</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold mb-1">Status</h4>
+              <StatusBadge status={vehicle.status} config={vehicleStatusConfig} />
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Blindado</h4>
+              <Badge variant={vehicle.isArmored ? "secondary" : "outline"}>
+                {vehicle.isArmored ? "Sim" : "Não"}
+              </Badge>
+            </div>
           </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Categoria</h4>
-            <p className="text-sm">{vehicle.category}</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Fornecedor</h4>
-            <p className="text-sm">{vehicle.supplier}</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Quilometragem</h4>
-            <p className="text-sm">{vehicle.mileage?.toLocaleString() || 'Não informada'}</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Blindado</h4>
-            <p className="text-sm">{vehicle.isArmored ? 'Sim' : 'Não'}</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Status</h4>
-            <p className="text-sm">
-              {vehicle.status === 'available' && 'Disponível'}
-              {vehicle.status === 'rented' && 'Alugado'}
-              {vehicle.status === 'maintenance' && 'Em Manutenção'}
-              {vehicle.status === 'reserved' && 'Reservado'}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm text-muted-foreground">Diária</h4>
-            <p className="text-sm">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-              }).format(vehicle.dailyRate)}
-            </p>
-          </div>
-          {vehicle.notes && (
-            <div className="col-span-2">
-              <h4 className="font-medium text-sm text-muted-foreground">Observações</h4>
-              <p className="text-sm">{vehicle.notes}</p>
+
+          {vehicle.supplier && (
+            <div>
+              <h4 className="font-semibold mb-1">Fornecedor</h4>
+              <p>{vehicle.supplier}</p>
+            </div>
+          )}
+
+          {vehicle.mileage && (
+            <div>
+              <h4 className="font-semibold mb-1">Quilometragem</h4>
+              <p>{vehicle.mileage.toLocaleString()} km</p>
+            </div>
+          )}
+
+          {vehicle.maintenanceHistory && vehicle.maintenanceHistory.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-1">Histórico de Manutenção</h4>
+              <div className="space-y-2">
+                {vehicle.maintenanceHistory.map((maintenance, index) => (
+                  <div key={index} className="border p-2 rounded">
+                    <p><strong>Data:</strong> {new Date(maintenance.date).toLocaleDateString()}</p>
+                    <p><strong>Descrição:</strong> {maintenance.description}</p>
+                    <p><strong>Custo:</strong> {maintenance.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

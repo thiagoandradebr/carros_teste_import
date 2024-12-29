@@ -1,68 +1,119 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Vehicle } from "@/types";
-import * as vehicleStorage from "@/services/vehicleStorage";
-
-type NewVehicle = Parameters<typeof vehicleStorage.addVehicle>[0];
+import { createContext, useContext, useState, useEffect } from "react";
+import { Vehicle, NewVehicle, VehicleStatus } from "@/types/vehicle";
+import { saveVehicle, loadVehicles, removeVehicle as removeVehicleFromStorage, updateVehicle as updateVehicleInStorage } from "@/services/vehicleStorage";
+import { generateUUID } from "@/utils/uuid";
 
 interface VehiclesContextData {
   vehicles: Vehicle[];
-  addVehicle: (vehicle: NewVehicle) => string;
-  updateVehicle: (id: string, vehicle: Partial<Vehicle>) => boolean;
-  deleteVehicle: (id: string) => boolean;
-  getVehicleById: (id: string) => Vehicle | undefined;
-  clearVehicles: () => void;
+  loading: boolean;
+  addVehicle: (vehicle: NewVehicle) => Promise<void>;
+  updateVehicle: (id: string, vehicle: Partial<NewVehicle>) => Promise<void>;
+  removeVehicle: (id: string) => Promise<void>;
+  updateVehicleStatus: (id: string, status: VehicleStatus) => Promise<void>;
 }
 
 const VehiclesContext = createContext<VehiclesContextData>({} as VehiclesContextData);
 
-export function VehiclesProvider({ children }: { children: ReactNode }) {
+export function VehiclesProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Carrega os veículos do localStorage quando o componente é montado
-    setVehicles(vehicleStorage.getVehicles());
+    async function loadInitialData() {
+      try {
+        const loadedVehicles = await loadVehicles();
+        setVehicles(loadedVehicles);
+      } catch (error) {
+        console.error('Error loading vehicles:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadInitialData();
   }, []);
 
-  const addVehicle = (vehicle: NewVehicle) => {
-    const id = vehicleStorage.addVehicle(vehicle);
-    setVehicles(vehicleStorage.getVehicles());
-    return id;
-  };
+  const addVehicle = async (vehicle: NewVehicle) => {
+    try {
+      const newVehicle: Vehicle = {
+        ...vehicle,
+        id: generateUUID(),
+        updatedAt: new Date().toISOString(),
+        photos: vehicle.photos || [],
+        documents: vehicle.documents || [],
+        rentalHistory: vehicle.rentalHistory || [],
+        rentals: vehicle.rentals || [],
+        maintenanceHistory: vehicle.maintenanceHistory || []
+      };
 
-  const updateVehicle = (id: string, vehicle: Partial<Vehicle>) => {
-    const success = vehicleStorage.updateVehicle(id, vehicle);
-    if (success) {
-      setVehicles(vehicleStorage.getVehicles());
+      await saveVehicle(newVehicle);
+      setVehicles(prev => [...prev, newVehicle]);
+    } catch (error) {
+      console.error('Error adding vehicle:', error);
+      throw error;
     }
-    return success;
   };
 
-  const deleteVehicle = (id: string) => {
-    const success = vehicleStorage.deleteVehicle(id);
-    if (success) {
-      setVehicles(vehicleStorage.getVehicles());
+  const updateVehicle = async (id: string, updates: Partial<NewVehicle>) => {
+    try {
+      const existingVehicle = vehicles.find(v => v.id === id);
+      if (!existingVehicle) {
+        throw new Error('Vehicle not found');
+      }
+
+      const updatedVehicle = {
+        ...existingVehicle,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateVehicleInStorage(id, updatedVehicle);
+      setVehicles(prev => prev.map(v => v.id === id ? updatedVehicle : v));
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+      throw error;
     }
-    return success;
   };
 
-  const getVehicleById = (id: string) => {
-    return vehicleStorage.getVehicleById(id);
+  const removeVehicle = async (id: string) => {
+    try {
+      await removeVehicleFromStorage(id);
+      setVehicles(prev => prev.filter(vehicle => vehicle.id !== id));
+    } catch (error) {
+      console.error('Error removing vehicle:', error);
+      throw error;
+    }
   };
 
-  const clearVehicles = () => {
-    vehicleStorage.clearVehicles();
-    setVehicles([]);
+  const updateVehicleStatus = async (id: string, status: VehicleStatus) => {
+    try {
+      await updateVehicleInStorage(id, { status });
+      setVehicles(prev =>
+        prev.map(v =>
+          v.id === id
+            ? {
+                ...v,
+                status,
+                updatedAt: new Date().toISOString()
+              }
+            : v
+        )
+      );
+    } catch (error) {
+      console.error('Error updating vehicle status:', error);
+      throw error;
+    }
   };
 
   return (
     <VehiclesContext.Provider
-      value={{
-        vehicles,
-        addVehicle,
-        updateVehicle,
-        deleteVehicle,
-        getVehicleById,
-        clearVehicles,
+      value={{ 
+        vehicles, 
+        loading,
+        addVehicle, 
+        updateVehicle, 
+        removeVehicle, 
+        updateVehicleStatus 
       }}
     >
       {children}
@@ -70,10 +121,10 @@ export function VehiclesProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useVehicles() {
+export const useVehicles = () => {
   const context = useContext(VehiclesContext);
   if (!context) {
-    throw new Error("useVehicles must be used within a VehiclesProvider");
+    throw new Error('useVehicles must be used within a VehiclesProvider');
   }
   return context;
-}
+};

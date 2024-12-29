@@ -1,77 +1,111 @@
 import { Vehicle, NewVehicle } from "@/types/vehicle";
+import { saveItem, getItem, removeItem, getAllItems } from "./storage";
 
-const STORAGE_KEY = "vehicles";
+// Função auxiliar para validar campos opcionais
+function validateOptionalFields(vehicle: Vehicle): Vehicle {
+  return {
+    ...vehicle,
+    mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+    documents: Array.isArray(vehicle.documents) ? vehicle.documents : [],
+    notes: typeof vehicle.notes === 'string' ? vehicle.notes : '',
+    maintenanceHistory: Array.isArray(vehicle.maintenanceHistory) 
+      ? vehicle.maintenanceHistory.map(item => ({
+          id: String(item.id),
+          date: String(item.date),
+          type: String(item.type),
+          description: String(item.description),
+          cost: Number(item.cost)
+        }))
+      : []
+  };
+}
 
-export function getVehicles(): Vehicle[] {
-  const storedVehicles = localStorage.getItem(STORAGE_KEY);
-  const vehicles = storedVehicles ? JSON.parse(storedVehicles) : [];
-  
-  // Filtra veículos inválidos
-  const validVehicles = vehicles.filter((vehicle: Vehicle) => 
+// Função auxiliar para validar campos obrigatórios
+function isValidVehicle(vehicle: any): vehicle is Vehicle {
+  return (
     vehicle &&
-    vehicle.id &&
-    vehicle.plate &&
-    vehicle.brand &&
-    vehicle.model &&
-    vehicle.year > 0 &&
-    vehicle.category &&
-    vehicle.status
+    typeof vehicle.id === 'string' &&
+    typeof vehicle.brand === 'string' &&
+    typeof vehicle.model === 'string' &&
+    typeof vehicle.year === 'number' &&
+    vehicle.year > 1900 &&
+    typeof vehicle.plate === 'string' &&
+    /^[A-Z]{3}[0-9][0-9A-Z][0-9]{2}$/.test(vehicle.plate) &&
+    typeof vehicle.color === 'string' &&
+    typeof vehicle.category === 'string' &&
+    typeof vehicle.status === 'string' &&
+    ["active", "maintenance", "inactive"].includes(vehicle.status) &&
+    typeof vehicle.supplier === 'string' &&
+    typeof vehicle.isArmored === 'boolean'
   );
+}
 
-  // Se houver veículos inválidos, atualiza o storage apenas com os válidos
-  if (validVehicles.length !== vehicles.length) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validVehicles));
+export async function loadVehicles(): Promise<Vehicle[]> {
+  try {
+    const vehicles = await getAllItems<Vehicle>('vehicles');
+    return vehicles.map(validateOptionalFields).filter(isValidVehicle);
+  } catch (error) {
+    console.error('Error loading vehicles:', error);
+    return [];
   }
-
-  return validVehicles;
 }
 
-export function addVehicle(vehicle: NewVehicle): string {
-  const vehicles = getVehicles();
-  const newVehicle = {
-    id: Math.random().toString(36).substr(2, 9),
-    brand: vehicle.brand || "",
-    model: vehicle.model || "",
-    year: vehicle.year || 0,
-    plate: vehicle.plate || "",
-    color: vehicle.color || "",
-    category: vehicle.category,
-    status: vehicle.status || "available",
-    dailyRate: vehicle.dailyRate || 0,
-    supplier: vehicle.supplier || "",
-    isArmored: vehicle.isArmored || false,
-    updatedAt: new Date().toISOString(),
-    vehicleName: vehicle.vehicleName
-  } satisfies Vehicle;
-
-  vehicles.push(newVehicle);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
-  return newVehicle.id;
+export async function saveVehicle(vehicle: Vehicle): Promise<void> {
+  try {
+    const validatedVehicle = validateOptionalFields(vehicle);
+    if (!isValidVehicle(validatedVehicle)) {
+      throw new Error('Invalid vehicle data');
+    }
+    await saveItem('vehicles', validatedVehicle.id, validatedVehicle);
+  } catch (error) {
+    console.error('Error saving vehicle:', error);
+    throw error;
+  }
 }
 
-export function updateVehicle(id: string, vehicle: Partial<Vehicle>): boolean {
-  const vehicles = getVehicles();
-  const index = vehicles.findIndex((v) => v.id === id);
-  if (index === -1) return false;
-  vehicles[index] = { ...vehicles[index], ...vehicle };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
-  return true;
+export async function addVehicle(vehicle: NewVehicle): Promise<string> {
+  try {
+    const validatedVehicle = validateOptionalFields(vehicle as Vehicle);
+    if (!isValidVehicle(validatedVehicle)) {
+      throw new Error('Invalid vehicle data');
+    }
+    await saveItem('vehicles', validatedVehicle.id, validatedVehicle);
+    return validatedVehicle.id;
+  } catch (error) {
+    console.error('Error adding vehicle:', error);
+    throw error;
+  }
 }
 
-export function deleteVehicle(id: string): boolean {
-  const vehicles = getVehicles();
-  const index = vehicles.findIndex((v) => v.id === id);
-  if (index === -1) return false;
-  vehicles.splice(index, 1);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
-  return true;
+export async function removeVehicle(id: string): Promise<void> {
+  try {
+    await removeItem('vehicles', id);
+  } catch (error) {
+    console.error('Error removing vehicle:', error);
+    throw error;
+  }
 }
 
-export function getVehicleById(id: string): Vehicle | undefined {
-  const vehicles = getVehicles();
-  return vehicles.find((v) => v.id === id);
-}
+export async function updateVehicle(id: string, updates: Partial<Vehicle>): Promise<void> {
+  try {
+    const existingVehicle = await getItem<Vehicle>('vehicles', id);
+    if (!existingVehicle) {
+      throw new Error('Vehicle not found');
+    }
 
-export function clearVehicles(): void {
-  localStorage.removeItem(STORAGE_KEY);
+    const updatedVehicle = validateOptionalFields({
+      ...existingVehicle,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    });
+
+    if (!isValidVehicle(updatedVehicle)) {
+      throw new Error('Invalid vehicle data');
+    }
+
+    await saveItem('vehicles', id, updatedVehicle);
+  } catch (error) {
+    console.error('Error updating vehicle:', error);
+    throw error;
+  }
 }

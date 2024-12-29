@@ -1,136 +1,84 @@
-import { Driver } from "@/types";
+import { Driver } from "@/types/driver";
 
-export let mockDrivers: Driver[] = [
+export const mockDrivers: Driver[] = [
   {
-    id: "1",
-    name: "Carlos Silva",
-    cpf: "123.456.789-00",
+    id: "d1",
+    name: "João Silva",
+    cpf: "12345678900",
+    birthDate: "1990-05-15",
     cnh: "12345678900",
     cnhValidity: "2025-12-31",
     cnhPoints: 0,
     phone: "(11) 98765-4321",
-    photo: "https://i.pravatar.cc/150?u=carlos",
-    cnhDocument: "/docs/cnh-carlos.pdf",
-    notes: "Motorista experiente, especializado em carros de luxo",
     status: "active",
     address: {
       cep: "01234-567",
-      street: "Rua dos Motoristas",
-      number: "100",
-      complement: "Apto 10",
+      street: "Rua A",
+      number: "123",
       neighborhood: "Centro",
       city: "São Paulo",
       state: "SP"
     },
-    trips: [
-      {
-        id: "t1",
-        date: "2024-01-15",
-        destination: "Rio de Janeiro",
-        distance: 450,
-        rating: 5,
-        notes: "Viagem perfeita, cliente muito satisfeito"
-      },
-      {
-        id: "t2",
-        date: "2024-01-20",
-        destination: "Campinas",
-        distance: 100,
-        rating: 5,
-        notes: "Entrega pontual"
-      }
-    ],
-    updatedAt: "2024-01-20T10:00:00Z"
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "2",
-    name: "Ana Santos",
-    cpf: "987.654.321-00",
+    id: "d2",
+    name: "Maria Santos",
+    cpf: "98765432100",
+    birthDate: "1988-03-20",
     cnh: "98765432100",
-    cnhValidity: "2024-10-15",
+    cnhValidity: "2024-12-31",
     cnhPoints: 5,
     phone: "(11) 91234-5678",
-    photo: "https://i.pravatar.cc/150?u=ana",
-    status: "training",
+    status: "active",
     address: {
       cep: "04567-890",
-      street: "Avenida Principal",
-      number: "200",
-      neighborhood: "Jardins",
+      street: "Rua B",
+      number: "456",
+      neighborhood: "Vila Nova",
       city: "São Paulo",
       state: "SP"
     },
-    trips: [
-      {
-        id: "t3",
-        date: "2024-01-18",
-        destination: "Santos",
-        distance: 80,
-        rating: 4,
-        notes: "Primeira viagem, bom desempenho"
-      }
-    ],
-    updatedAt: "2024-01-18T14:30:00Z"
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "3",
-    name: "Roberto Oliveira",
-    cpf: "456.789.123-00",
+    id: "d3",
+    name: "Pedro Oliveira",
+    cpf: "45678912300",
+    birthDate: "1995-11-10",
     cnh: "45678912300",
-    cnhValidity: "2024-08-20",
-    cnhPoints: 13,
-    phone: "(11) 97777-8888",
-    photo: "https://i.pravatar.cc/150?u=roberto",
-    cnhDocument: "/docs/cnh-roberto.pdf",
-    notes: "Precisa de reciclagem devido aos pontos na CNH",
+    cnhValidity: "2024-06-30",
+    cnhPoints: 19,
+    phone: "(11) 94567-8901",
+    status: "inactive",
+    address: {
+      cep: "08901-234",
+      street: "Rua C",
+      number: "789",
+      neighborhood: "Jardim",
+      city: "São Paulo",
+      state: "SP"
+    },
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "d4",
+    name: "Ana Costa",
+    cpf: "78912345600",
+    birthDate: "1992-07-25",
+    cnh: "78912345600",
+    cnhValidity: "2024-12-31",
+    cnhPoints: 21,
+    phone: "(11) 97890-1234",
     status: "suspended",
     address: {
-      cep: "05678-901",
-      street: "Rua das Palmeiras",
-      number: "300",
+      cep: "03456-789",
+      street: "Rua D",
+      number: "321",
       neighborhood: "Moema",
       city: "São Paulo",
       state: "SP"
     },
-    updatedAt: "2024-01-10T16:45:00Z"
+    updatedAt: new Date().toISOString(),
   },
-  {
-    id: "4",
-    name: "Mariana Costa",
-    cpf: "789.123.456-00",
-    cnh: "78912345600",
-    cnhValidity: "2025-06-30",
-    cnhPoints: 2,
-    phone: "(11) 96666-7777",
-    photo: "https://i.pravatar.cc/150?u=mariana",
-    status: "active",
-    address: {
-      cep: "06789-012",
-      street: "Alameda dos Ipês",
-      number: "400",
-      complement: "Casa 2",
-      neighborhood: "Alto de Pinheiros",
-      city: "São Paulo",
-      state: "SP"
-    },
-    trips: [
-      {
-        id: "t4",
-        date: "2024-01-19",
-        destination: "Guarulhos",
-        distance: 30,
-        rating: 5,
-        notes: "Excelente condução"
-      },
-      {
-        id: "t5",
-        date: "2024-01-21",
-        destination: "Osasco",
-        distance: 25,
-        rating: 5,
-        notes: "Muito profissional"
-      }
-    ],
-    updatedAt: "2024-01-21T09:15:00Z"
-  }
 ];
